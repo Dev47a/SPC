@@ -1,0 +1,806 @@
+Serial
+To interface a Raspberry Pi with an Arduino, where the Raspberry Pi 
+sends serial data to the Arduino, which controls an LED to blink every second.
+
+Code: 
+ 
+(i) Arduino 
+ 
+int ledPin = 13;  // Pin connected to the LED 
+char receivedData; 
+ 
+void setup() { 
+  pinMode(ledPin, OUTPUT);  // Set LED pin as output 
+  Serial.begin(9600);       // Start serial communication at 9600 baud 
+} 
+ 
+void loop() { 
+  // Check if any serial data is available 
+  if (Serial.available() > 0) { 
+    receivedData = Serial.read();  // Read the data sent from Raspberry Pi 
+     
+    // Toggle LED when receiving '1' 
+    if (receivedData == '1') { 
+      digitalWrite(ledPin, HIGH);  // Turn the LED on 
+      delay(500);                  // Wait for 500ms 
+      digitalWrite(ledPin, LOW);   // Turn the LED off 
+    } 
+  } 
+} 
+ 
+ 
+(ii) Raspberry Pi 
+ 
+import serial 
+import time 
+ 
+# Initialize serial communication with Arduino 
+arduino = serial.Serial('/dev/ttyACM0', 9600, timeout=1)  # Use /dev/ttyUSB0 if you're using a different USB port 
+ 
+time.sleep(2)  # Wait for Arduino to reset 
+ 
+while True: 
+    # Send a signal to Arduino every second 
+    arduino.write(b'1')  # Sending a byte signal '1' 
+    time.sleep(1) 
+
+
+
+
+
+Sockets
+
+1) To develop a client-server communication system using two Raspberry Pi devices interfaced 
+with Arduino Unos to monitor the distance of an object using an ultrasonic sensor. 
+
+Client Side (Data Collection(Distance from ultrasonic sensor)):
+ 
+Arduino:
+const int trigPin = 9; 
+const int echoPin = 10; 
+ 
+float duration, distance; 
+void setup() { 
+  pinMode(trigPin, OUTPUT); 
+  pinMode(echoPin, INPUT); 
+  Serial.begin(9600); 
+} 
+
+void loop() { 
+  digitalWrite(trigPin, LOW); 
+  delayMicroseconds(2); 
+  digitalWrite(trigPin, HIGH); 
+  delayMicroseconds(10); 
+  digitalWrite(trigPin, LOW); 
+  duration = pulseIn(echoPin, HIGH); 
+  distance = (duration*.0343)/2; 
+  Serial.print("Distance: "); 
+  Serial.println(distance); 
+  delay(100); 
+} 
+
+
+Raspberry:
+import socket 
+import RPi.GPIO as GPIO 
+ 
+def Main(): 
+    GPIO.setmode(GPIO.BOARD) 
+    GPIO.setup(11,GPIO.OUT) 
+    host='172.16.60.197' #client ip 
+    port = 4005 
+    server = ('172.16.60.200', 4010) 
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
+    s.bind((host,port)) 
+ 
+    while True: 
+        data, addr = s.recvfrom(1024) 
+        data = data.decode('utf-8') 
+        print("Received from client: " + data) 
+        if float(data) < 25: 
+            # led on 
+            GPIO.output(11,GPIO.HIGH) 
+    s.close() 
+if _name=='main_': 
+    Main()
+
+
+Server Side:
+ 
+Arduino:
+Server Side (Interface with LED):
+ 
+const int Pin = 8; 
+int val; 
+void setup() { 
+  pinMode(Pin, OUTPUT); 
+  Serial.begin(9600); 
+} 
+void loop() { 
+  if (Serial.available() > 0) { 
+    // read the incoming byte: 
+    val = Serial.read(); 
+    Serial.print("I received: "); 
+    Serial.println(val, DEC); 
+    if(val==48){digitalWrite(Pin, HIGH);} 
+    else{ 
+      digitalWrite(Pin, LOW); 
+    } 
+    delay(100); 
+  } 
+} 
+
+
+Raspberry pi:
+Server Side:
+
+import socket 
+from serial import Serial 
+def Main(): 
+    host = '172.16.60.200' #Server ip 
+    port = 4010 
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
+    s.bind((host, port)) 
+    print("Server Started") 
+    ser = Serial('/dev/ttyUSB0', 9600) 
+    ser.reset_input_buffer() 
+    address = ('172.16.60.197', 4005) 
+    while True:   
+        if ser.in_waiting > 0: 
+            line = ser.readline().decode('utf-8').rstrip() 
+            s.sendto(line.encode('utf-8'), address) 
+            print(line) 
+    
+    c.close() 
+ 
+if _name=='main_': 
+    Main()
+
+
+Sockets
+
+ii) To develop a client-server communication system using two Raspberry Pi 
+devices. The system sends a signal to control an LED based on the value of 
+Ultrasonic demonstrating a basic application involving sensor data acquisition, 
+inter-device communication, and real-time actuation. 
+
+(i) Server: 
+import socket 
+ 
+# Server configuration 
+HOST = '0.0.0.0'   
+PORT = 65432     
+ 
+# Set up the server socket 
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket: 
+    server_socket.bind((HOST, PORT)) 
+    server_socket.listen() 
+    print(f"Server listening on {HOST}:{PORT}") 
+     
+    conn, addr = server_socket.accept() 
+    with conn: 
+        print(f"Connected by {addr}") 
+         
+        while True: 
+            command = input("Enter command (data/exit): ").strip() 
+            if command == 'exit': 
+                conn.sendall(command.encode()) 
+                break 
+            elif command == 'data': 
+                conn.sendall(command.encode())  # Request data from the client 
+                response = conn.recv(1024).decode()  # Receive response 
+                print(f"Received data: {response}") 
+            else: 
+                print("Invalid command. Please enter 'data' or 'exit'."
+
+(ii) Client: 
+import socket 
+import RPi.GPIO as GPIO 
+import time 
+ 
+# Client configuration 
+SERVER_IP = '192.168.1.100'  # Replace with the server's IP address 
+PORT = 65432 
+ 
+# GPIO pin configuration for the ultrasonic sensor 
+TRIG = 23  # Trigger pin 
+ECHO = 24  # Echo pin 
+TEMP_SENSOR_PIN = 4  # LM35 sensor connected to GPIO pin 4 
+ 
+# Setup GPIO pins 
+GPIO.setmode(GPIO.BCM) 
+GPIO.setup(TRIG, GPIO.OUT) 
+GPIO.setup(ECHO, GPIO.IN) 
+GPIO.setup(TEMP_SENSOR_PIN, GPIO.IN) 
+ 
+def get_temperature(): 
+    # Example code to simulate reading temperature from LM35 
+    # Replace this with actual ADC reading logic if required 
+    temp = 25.0  # Placeholder value, replace with ADC logic 
+    return temp 
+ 
+def get_distance(): 
+    # Ensure trigger is low 
+    GPIO.output(TRIG, False) 
+    time.sleep(2) 
+     
+    # Send a short pulse to trigger the ultrasonic sensor 
+    GPIO.output(TRIG, True) 
+    time.sleep(0.00001) 
+    GPIO.output(TRIG, False) 
+ 
+    # Measure the duration of the pulse on the ECHO pin 
+    while GPIO.input(ECHO) == 0: 
+        pulse_start = time.time() 
+ 
+    while GPIO.input(ECHO) == 1: 
+        pulse_end = time.time() 
+ 
+    # Calculate distance based on pulse duration 
+    pulse_duration = pulse_end - pulse_start 
+    distance = pulse_duration * 17150  # Distance in centimeters 
+    distance = round(distance, 2) 
+    return distance 
+ 
+# Set up the client socket
+ith socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket: 
+    client_socket.connect((SERVER_IP, PORT)) 
+    print(f"Connected to server {SERVER_IP}:{PORT}") 
+     
+    while True: 
+        command = client_socket.recv(1024).decode() 
+        if command == 'data': 
+            temperature = get_temperature() 
+            distance = get_distance() 
+            response = f"Temperature: {temperature}°C, Distance: {distance} cm" 
+            client_socket.sendall(response.encode()) 
+            print("Sent data to server") 
+        elif command == 'exit': 
+            print("Exiting...") 
+            break 
+ 
+# Clean up GPIO settings 
+GPIO.cleanup() 
+
+SOCKET PROGRAMMING
+iii) To develop a client-server communication system using two Raspberry Pi 
+devices. The system sends a signal to control an LED, demonstrating a basic 
+application involving sensor data acquisition, inter-device communication, and 
+real-time actuation. 
+
+Code: 
+(i) Server: 
+import socket 
+ 
+# Server configuration 
+HOST = '0.0.0.0'   
+PORT = 65432       
+ 
+# Set up the server socket 
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket: 
+    server_socket.bind((HOST, PORT)) 
+    server_socket.listen() 
+    print(f"Server listening on {HOST}:{PORT}") 
+     
+    conn, addr = server_socket.accept() 
+    with conn: 
+        print(f"Connected by {addr}") 
+         
+        while True: 
+            command = input("Enter command (on/off/exit): ").strip() 
+            if command == 'exit': 
+                conn.sendall(command.encode()) 
+                break 
+            elif command in ['on', 'off']: 
+                conn.sendall(command.encode()) 
+            else: 
+                print("Invalid command. Please enter 'on', 'off', or 'exit'.") 
+
+ 
+(ii) Client: 
+import socket 
+import RPi.GPIO as GPIO 
+ 
+# Client configuration 
+SERVER_IP = '192.168.1.100'  # Replace with the server's IP address 
+PORT = 65432 
+ 
+# LED setup 
+LED_PIN = 18  # GPIO pin number where the LED is connected 
+GPIO.setmode(GPIO.BCM) 
+GPIO.setup(LED_PIN, GPIO.OUT) 
+ 
+# Set up the client socket 
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket: 
+    client_socket.connect((SERVER_IP, PORT)) 
+    print(f"Connected to server {SERVER_IP}:{PORT}") 
+     
+    while True: 
+        command = client_socket.recv(1024).decode() 
+        if command == 'on': 
+            GPIO.output(LED_PIN, GPIO.HIGH) 
+            print("LED turned ON") 
+        elif command == 'off': 
+            GPIO.output(LED_PIN, GPIO.LOW) 
+            print("LED turned OFF") 
+        elif command == 'exit': 
+            print("Exiting...") 
+            break 
+ 
+# Clean up GPIO settings 
+GPIO.cleanup() 
+
+
+
+
+
+COAP
+
+2) To develop a client server communication system using 2 raspberry pi devices using 
+the CoAP protocol. The system has 3 sensors: Ultrasonic, touch and PIR sensor at the server 
+side which sends the data to the client where appropriate LEDs(2) are turned on.
+
+Code: 
+(i) Server: 
+import asyncio 
+from aiocoap import resource, Context, Message, Code 
+from gpiozero import DistanceSensor, MotionSensor 
+import random 
+import RPi.GPIO as GPIO 
+ 
+GPIO.setmode(GPIO.BCM) 
+TOUCH_PIN = 2 
+GPIO.setup(TOUCH_PIN, GPIO.IN) 
+ 
+# Setup the HC-SR04 ultrasonic sensor  
+sensor = DistanceSensor(echo=27, trigger=17) 
+pir = MotionSensor(4) 
+ 
+class SensorResource(resource.Resource): 
+    def _init_(self): 
+        super()._init__()  
+    async def render_get(self, request): # Get the distance from the sensor in centimeters 
+        distance = sensor.distance * 100 # Convert to centimeters  
+        print(distance) 
+        payload_data = 0 
+        payload_data_1 = GPIO.input(TOUCH_PIN)
+        data = random.randint(1,11) 
+        if data % 2 == 0: 
+            payload_data = 1 
+        else: 
+            payload_data = 0 
+        payload = f"{distance:.2f},{payload_data}, {payload_data_1}".encode("utf-8") 
+        return Message(code=Code.CONTENT,payload=payload)   
+     
+async def main(): 
+    root = resource.Site() 
+    root.add_resource(('sensor',), SensorResource()) 
+    context = await Context.create_server_context(root) 
+     
+    print("CoAP Server Started") 
+    await asyncio.sleep(float("inf")) 
+     
+if __name__ == "__main__": 
+    asyncio.run(main())  
+
+
+
+(ii) Client: 
+import asyncio 
+from aiocoap import Context, Message,Code 
+from time import sleep 
+import RPi.GPIO as GPIO 
+GPIO.setmode(GPIO.BCM) 
+GPIO.setwarnings(False) 
+GPIO.setup(27,GPIO.OUT) 
+GPIO.setup(22,GPIO.OUT) 
+async def main(): 
+    context = await Context.create_client_context() 
+ 
+    while True: 
+        request = Message(code=Code.GET, uri="coap://172.16.40.251/sensor") 
+        try: 
+            response = await context.request(request).response 
+            distance,pir,touch=response.payload.decode('utf-8').split(",") 
+            print(distance) 
+            if int(float(distance))<10 and int(pir) ==1: 
+                print ("Human detected") 
+                GPIO.output(27,GPIO.HIGH) 
+            else: 
+                print ("NO Human detected") 
+                GPIO.output(27,GPIO.LOW) 
+
+            if int(touch) ==1: 
+                print ("Touched") 
+                GPIO.output(22,GPIO.HIGH) 
+            else: 
+                print ("Not Touched")
+              GPIO.output(22,GPIO.LOW)     
+                 
+            print(f"Response code: {response.code}") 
+            print(f"Payload: {response.payload.decode('utf-8')}") 
+        except Exception as e: 
+            print("Exception:",e) 
+ 
+        sleep(2) 
+         
+if __name__ == "__main__": 
+         asyncio.run(main()) 
+ 
+   asyncio.run(main())
+
+
+
+
+Raspberry pi - ThingSpeak
+3) Sending Measurement to ThingSpeak Cloud using Raspberry-Pi Module
+
+Code: 
+ 
+import RPi.GPIO as GPIO 
+import time 
+import requests 
+import Adafruit_DHT 
+ 
+# Define pins 
+TRIG_PIN = 23 
+ECHO_PIN = 24 
+DHT_SENSOR_PIN = 4 
+ 
+# ThingSpeak API details 
+THINGSPEAK_API_URL = 'https://api.thingspeak.com/update' 
+THINGSPEAK_WRITE_KEY = '6PIZRHSG0344RB5A' 
+ 
+# Setup GPIO mode and pins 
+GPIO.setmode(GPIO.BCM) 
+GPIO.setup(TRIG_PIN, GPIO.OUT) 
+GPIO.setup(ECHO_PIN, GPIO.IN) 
+ 
+# Initialize DHT11 sensor 
+dht_sensor = Adafruit_DHT.DHT11 
+ 
+# Function to get the distance from the ultrasonic sensor 
+def get_distance(): 
+    GPIO.output(TRIG_PIN, GPIO.LOW) 
+    time.sleep(0.5) 
+ 
+    GPIO.output(TRIG_PIN, GPIO.HIGH) 
+    time.sleep(0.00001)
+    GPIO.output(TRIG_PIN, GPIO.LOW) 
+ 
+    pulse_start = time.time() 
+ 
+    while GPIO.input(ECHO_PIN) == GPIO.LOW: 
+        pulse_start = time.time() 
+ 
+    pulse_end = time.time() 
+ 
+    while GPIO.input(ECHO_PIN) == GPIO.HIGH: 
+        pulse_end = time.time() 
+ 
+    pulse_duration = pulse_end - pulse_start 
+ 
+    if pulse_duration > 0: 
+        distance = pulse_duration * 17150 
+        distance = round(distance, 2) 
+    else: 
+        distance = -1 
+ 
+    return distance 
+ 
+# Function to get temperature and humidity from the DHT11 sensor 
+def get_temperature_humidity(): 
+    humidity, temperature = Adafruit_DHT.read_retry(dht_sensor, DHT_SENSOR_PIN) 
+ 
+    if humidity is not None and temperature is not None: 
+        return temperature, humidity 
+    else: 
+        return None, None 
+ 
+# Function to send data to ThingSpeak 
+def send_to_thingspeak(distance, temperature, humidity): 
+    payload = { 
+        'api_key': THINGSPEAK_WRITE_KEY, 
+        'field1': distance, 
+        'field2': temperature, 
+        'field3': humidity 
+    } 
+ 
+    try: 
+        response = requests.post(THINGSPEAK_API_URL, data=payload) 
+        response.raise_for_status() 
+        print(f"Data sent to ThingSpeak: {response.status_code}") 
+    except requests.exceptions.RequestException as e: 
+        print(f"Error sending data to ThingSpeak: {e}")
+
+if __name__ == "__main__": 
+    try: 
+        while True: 
+            distance = get_distance() 
+            temperature, humidity = get_temperature_humidity() 
+ 
+            if distance != -1 and temperature is not None and humidity is not None: 
+                print(f"Measured Distance: {distance} cm") 
+                print(f"Temperature: {temperature} °C") 
+                print(f"Humidity: {humidity} %") 
+ 
+                send_to_thingspeak(distance, temperature, humidity) 
+            else: 
+                print("Failed to measure distance, temperature, or humidity.") 
+ 
+            time.sleep(2) 
+ 
+    except KeyboardInterrupt: 
+        print("Measurement stopped by user.") 
+ 
+    finally: 
+        GPIO.cleanup()
+
+
+
+
+ESP32 and ESP8266 with Thingspeak - DHT
+4) Sending DHT sensor data to ThingSpeak using ESP32 and ESP8266
+
+
+
+Code for ESP32: 
+#include <WiFi.h>           // WiFi library for ESP32 
+#include <HTTPClient.h> 
+#include <DHT.h> 
+ 
+// Replace with your network credentials 
+const char* ssid = "YOUR_WIFI_SSID"; 
+const char* password = "YOUR_WIFI_PASSWORD"; 
+ 
+// ThingSpeak settings 
+const char* server = "http://api.thingspeak.com"; 
+String apiKey = "YOUR_THINGSPEAK_WRITE_API_KEY"; 
+ 
+// DHT settings 
+#define DHTPIN 4            // DHT sensor pin for ESP32 
+#define DHTTYPE DHT22       // DHT 11 or DHT 22 
+DHT dht(DHTPIN, DHTTYPE); 
+ 
+void setup() { 
+  Serial.begin(115200); 
+  delay(10); 
+ 
+  // Initialize DHT sensor 
+  dht.begin(); 
+ 
+  // Connect to WiFi 
+  Serial.print("Connecting to "); 
+  Serial.println(ssid); 
+  WiFi.begin(ssid, password); 
+  while (WiFi.status() != WL_CONNECTED) { 
+    delay(500); 
+    Serial.print("."); 
+  } 
+  Serial.println("\nWiFi connected"); 
+} 
+ 
+void loop() { 
+  // Read temperature and humidity from DHT sensor 
+  float temperature = dht.readTemperature(); 
+  float humidity = dht.readHumidity(); 
+ 
+  // Check if readings are valid 
+  if (isnan(temperature) || isnan(humidity)) { 
+    Serial.println("Failed to read from DHT sensor!"); 
+    return; 
+  } 
+ 
+  // Display readings 
+  Serial.print("Temperature: "); 
+  Serial.print(temperature); 
+  Serial.print(" °C, Humidity: ");
+  Serial.print(humidity); 
+  Serial.println(" %"); 
+ 
+  // Send data to ThingSpeak 
+  if (WiFi.status() == WL_CONNECTED) { 
+    HTTPClient http; 
+    String url = server + "/update?api_key=" + apiKey + "&field1=" + String(temperature) + 
+"&field2=" + String(humidity); 
+ 
+    http.begin(url); 
+    int httpResponseCode = http.GET(); 
+    if (httpResponseCode > 0) { 
+      Serial.print("Data sent to ThingSpeak. Response code: "); 
+      Serial.println(httpResponseCode); 
+    } else { 
+      Serial.print("Error sending data. HTTP response code: "); 
+      Serial.println(httpResponseCode); 
+    } 
+    http.end(); 
+  } else { 
+    Serial.println("Error in WiFi connection"); 
+  } 
+ 
+  // Wait 20 seconds to avoid exceeding ThingSpeak rate limit 
+  delay(20000); 
+} 
+ 
+Code for ESP8266: 
+#include <ESP8266WiFi.h>     // WiFi library for ESP8266 
+#include <ESP8266HTTPClient.h> 
+#include <DHT.h> 
+ 
+// Replace with your network credentials 
+const char* ssid = "YOUR_WIFI_SSID"; 
+const char* password = "YOUR_WIFI_PASSWORD"; 
+ 
+// ThingSpeak settings 
+const char* server = "http://api.thingspeak.com"; 
+String apiKey = "YOUR_THINGSPEAK_WRITE_API_KEY"; 
+ 
+// DHT settings 
+#define DHTPIN 2            // DHT sensor pin for ESP8266 
+#define DHTTYPE DHT22       // DHT 11 or DHT 22 
+DHT dht(DHTPIN, DHTTYPE); 
+ 
+void setup() { 
+  Serial.begin(115200); 
+  delay(10); 
+ 
+  // Initialize DHT sensor 
+  dht.begin();
+  // Connect to WiFi 
+  Serial.print("Connecting to "); 
+  Serial.println(ssid); 
+  WiFi.begin(ssid, password); 
+  while (WiFi.status() != WL_CONNECTED) { 
+    delay(500); 
+    Serial.print("."); 
+  } 
+  Serial.println("\nWiFi connected"); 
+} 
+ 
+void loop() { 
+  // Read temperature and humidity from DHT sensor 
+  float temperature = dht.readTemperature(); 
+  float humidity = dht.readHumidity(); 
+ 
+  // Check if readings are valid 
+  if (isnan(temperature) || isnan(humidity)) { 
+    Serial.println("Failed to read from DHT sensor!"); 
+    return; 
+  } 
+ 
+  // Display readings 
+  Serial.print("Temperature: "); 
+  Serial.print(temperature); 
+  Serial.print(" °C, Humidity: "); 
+  Serial.print(humidity); 
+  Serial.println(" %"); 
+ 
+  // Send data to ThingSpeak 
+  if (WiFi.status() == WL_CONNECTED) { 
+    HTTPClient http; 
+    String url = server + "/update?api_key=" + apiKey + "&field1=" + String(temperature) + 
+"&field2=" + String(humidity); 
+ 
+    http.begin(url); 
+    int httpResponseCode = http.GET(); 
+    if (httpResponseCode > 0) { 
+      Serial.print("Data sent to ThingSpeak. Response code: "); 
+      Serial.println(httpResponseCode); 
+    } else { 
+      Serial.print("Error sending data. HTTP response code: "); 
+      Serial.println(httpResponseCode); 
+    } 
+    http.end(); 
+  } else { 
+    Serial.println("Error in WiFi connection"); 
+  } 
+ 
+  // Wait 20 seconds to avoid exceeding ThingSpeak rate limit 
+  delay(20000); 
+}
+  
+
+
+
+BLYNK - ThingSpeak - ESP32
+
+5) Using ESP32/8266 for sending data to thingspeak and performing some control 
+action at ESP module auromatically and manually with Blynk App at user end 
+
+#include <WiFi.h>                  // For ESP32 
+#include <BlynkSimpleEsp32.h>      // Blynk Library 
+#include <ThingSpeak.h>            // ThingSpeak Library 
+#include <DHT.h>                   // DHT Sensor Library 
+ 
+// Wi-Fi credentials 
+const char* ssid = "Your_SSID"; 
+const char* password = "Your_PASSWORD"; 
+ 
+// ThingSpeak credentials 
+unsigned long myChannelNumber = YOUR_CHANNEL_NUMBER; 
+const char* myWriteAPIKey = "YOUR_API_KEY"; 
+ 
+// Blynk credentials 
+char auth[] = "Your_Blynk_Auth_Token"; 
+ 
+// Pin definitions 
+#define DHTPIN 4                   // Pin connected to the DHT sensor 
+#define DHTTYPE DHT11              // DHT11 or DHT22 sensor 
+#define BUZZER_PIN 5                // Pin connected to the Buzzer 
+ 
+DHT dht(DHTPIN, DHTTYPE); 
+ 
+WiFiClient client; 
+ 
+void setup() { 
+  // Serial Monitor 
+  Serial.begin(115200); 
+ 
+  // Initialize sensor and Buzzer 
+  dht.begin(); 
+  pinMode(BUZZER_PIN, OUTPUT); 
+  digitalWrite(BUZZER_PIN, LOW); 
+  // Connect to Wi-Fi 
+  WiFi.begin(ssid, password); 
+  while (WiFi.status() != WL_CONNECTED) { 
+    delay(1000); 
+    Serial.println("Connecting to Wi-Fi..."); 
+  } 
+  Serial.println("Connected to Wi-Fi"); 
+ 
+  // Initialize ThingSpeak 
+  ThingSpeak.begin(client); 
+ 
+  // Initialize Blynk 
+  Blynk.begin(auth, ssid, password); 
+} 
+ 
+void loop() { 
+  // Blynk handling 
+  Blynk.run(); 
+ 
+  // Read sensor data 
+  float temperature = dht.readTemperature(); 
+  float humidity = dht.readHumidity(); 
+ 
+  // Check if sensor data is valid 
+  if (isnan(temperature) || isnan(humidity)) { 
+    Serial.println("Failed to read from DHT sensor!"); 
+    return; 
+  } 
+ 
+  // Print sensor data to Serial 
+  Serial.print("Temperature: "); 
+  Serial.print(temperature); 
+  Serial.print(" °C, Humidity: "); 
+  Serial.print(humidity); 
+  Serial.println(" %"); 
+ 
+  // Send data to ThingSpeak 
+  ThingSpeak.setField(1, temperature); 
+  ThingSpeak.setField(2, humidity); 
+  int result = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey); 
+  if (result == 200) { 
+    Serial.println("Data sent to ThingSpeak successfully."); 
+  } else { 
+    Serial.println("Failed to send data to ThingSpeak."); 
+  } 
+  if (temperature > 30) { 
+    digitalWrite(BUZZER_PIN, HIGH); // Turn on Buzzer 
+    Serial.println("Buzzer turned ON automatically."); 
+  } else { 
+    digitalWrite(BUZZER_PIN, LOW);  // Turn off Buzzer 
+    Serial.println("Buzzer turned OFF automatically."); 
+  } 
+ 
+  // Delay for ThingSpeak update interval 
+  delay(20000);  // 20 seconds 
+} 
+ 
+// Blynk virtual pin write handler 
+BLYNK_WRITE(V1) { 
+  int BuzzerState = param.asInt();  // Get value from Blynk slider or button 
+  digitalWrite(BUZZER_PIN, BuzzerState); 
+  Serial.print("Buzzer state changed manually: "); 
+  Serial.println(BuzzerState ? "ON" : "OFF"); 
+}
