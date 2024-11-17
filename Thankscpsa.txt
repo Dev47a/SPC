@@ -1,0 +1,1107 @@
+1)	Automatic Plant Watering System: Use a Soil Moisture Sensor and a Relay Module to control water flow to plants based on soil moisture levels.
+
+int moisturePin = A0;  // Soil moisture sensor analog pin
+int relayPin = 7;      // Relay control pin
+int moistureValue = 0;       // Variable to store moisture level
+int threshold = 400;         // Threshold value for soil dryness (adjustable)
+
+void setup() {
+  Serial.begin(9600);        // Start serial communication
+  pinMode(moisturePin, INPUT); // Set soil sensor as input
+  pinMode(relayPin, OUTPUT);  // Set relay as output
+  digitalWrite(relayPin, HIGH); // Keep relay off initially
+}
+
+void loop() {
+  moistureValue = analogRead(moisturePin); // Read moisture level
+  Serial.print("Moisture Level: ");
+  Serial.println(moistureValue);           // Print the moisture level
+
+  if (moistureValue < threshold) {         // If soil is dry
+    digitalWrite(relayPin, LOW);           // Turn relay on (start pump)
+    Serial.println("Soil is dry. Watering the plant...");
+  } else {                                 // If soil is wet enough
+    digitalWrite(relayPin, HIGH);          // Turn relay off (stop pump)
+    Serial.println("Soil is wet. No need to water.");
+  }
+
+  delay(2000); // Delay for stability
+}
+
+Raspberry PI:
+
+sudo apt-get install python3-spidev
+
+
+import RPi.GPIO as GPIO
+import spidev  # For SPI communication with MCP3008 ADC
+import time
+
+# Define pins
+moisture_channel = 0  # Soil moisture sensor analog channel on MCP3008
+relay_pin = 7         # Relay control pin (GPIO 7)
+threshold = 400       # Threshold for soil dryness
+
+# Set up GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(relay_pin, GPIO.OUT)
+GPIO.output(relay_pin, GPIO.HIGH)  # Keep relay off initially
+
+# Set up SPI
+spi = spidev.SpiDev()
+spi.open(0, 0)  # Open SPI bus
+spi.max_speed_hz = 1350000  # Set speed
+
+def read_adc(channel):
+    # Read from MCP3008 ADC
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
+
+try:
+    while True:
+        # Read moisture value
+        moisture_value = read_adc(moisture_channel)
+        print(f"Moisture Level: {moisture_value}")
+        
+        if moisture_value < threshold:
+            GPIO.output(relay_pin, GPIO.LOW)  # Start pump
+            print("Soil is dry. Watering the plant...")
+        else:
+            GPIO.output(relay_pin, GPIO.HIGH)  # Stop pump
+            print("Soil is wet. No need to water.")
+        
+        time.sleep(2)
+
+except KeyboardInterrupt:
+    print("Program stopped by user")
+
+finally:
+    spi.close()
+    GPIO.cleanup()
+
+
+
+2)	Temperature and Humidity Alert System: Connect a DHT11 Sensor and a Buzzer to alert when temperature or humidity exceeds a set threshold.
+
+Include library for DHT 11: “DHT sensor library” by Adafruit
+ 
+
+#include <DHT.h>
+
+// Define sensor type and pin
+#define DHTPIN 2        // DHT11 data pin connected to digital pin 2
+#define DHTTYPE DHT11   // DHT11 sensor
+
+// Define threshold values
+const float tempThreshold = 30.0;  // Temperature threshold in °C
+const float humThreshold = 60.0;   // Humidity threshold in %
+
+const int buzzerPin = 8;           // Buzzer connected to digital pin 8
+DHT dht(DHTPIN, DHTTYPE);          // Initialize DHT sensor
+
+void setup() {
+  Serial.begin(9600);              // Start serial communication
+  dht.begin();                     // Start DHT sensor
+  pinMode(buzzerPin, OUTPUT);      // Set buzzer as output
+  digitalWrite(buzzerPin, LOW);    // Keep buzzer off initially
+}
+
+void loop() {
+  // Read temperature and humidity from DHT11
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  // Check if reading failed
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Display temperature and humidity
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.print(" °C, Humidity: ");
+  Serial.print(humidity);
+  Serial.println(" %");
+
+  // Check if either value exceeds the threshold
+  if (temperature > tempThreshold || humidity > humThreshold) {
+    digitalWrite(buzzerPin, HIGH); // Activate buzzer
+    Serial.println("Alert! Threshold exceeded.");
+  } else {
+    digitalWrite(buzzerPin, LOW);  // Deactivate buzzer
+  }
+
+  delay(2000); // Wait for 2 seconds before reading again
+}
+
+Raspberry PI:
+
+pip install Adafruit_DHT
+
+
+import Adafruit_DHT
+import RPi.GPIO as GPIO
+import time
+
+# Define DHT sensor type and pin
+DHT_SENSOR = Adafruit_DHT.DHT11
+DHT_PIN = 2  # GPIO pin connected to the DHT11 data pin (BCM numbering)
+
+# Define threshold values
+temp_threshold = 30.0  # Temperature threshold in °C
+hum_threshold = 60.0   # Humidity threshold in %
+
+# Define buzzer pin
+buzzer_pin = 8  # GPIO pin for buzzer (BCM numbering)
+
+# Set up GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(buzzer_pin, GPIO.OUT)
+GPIO.output(buzzer_pin, GPIO.LOW)  # Keep buzzer off initially
+
+try:
+    while True:
+        # Read temperature and humidity from DHT11
+        humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
+        
+        # Check if reading was successful
+        if humidity is None or temperature is None:
+            print("Failed to read from DHT sensor!")
+            time.sleep(2)
+            continue
+
+        # Display temperature and humidity
+        print(f"Temperature: {temperature:.1f} °C, Humidity: {humidity:.1f} %")
+
+        # Check if either value exceeds the threshold
+        if temperature > temp_threshold or humidity > hum_threshold:
+            GPIO.output(buzzer_pin, GPIO.HIGH)  # Activate buzzer
+            print("Alert! Threshold exceeded.")
+        else:
+            GPIO.output(buzzer_pin, GPIO.LOW)  # Deactivate buzzer
+
+        time.sleep(2)  # Wait for 2 seconds before reading again
+
+except KeyboardInterrupt:
+    print("Program stopped by user")
+
+finally:
+    GPIO.cleanup()
+
+
+
+
+
+3)	Home Security System with Motion Detection: Use a PIR Sensor and a Relay Module to activate an alarm or light when motion is detected.
+
+const int pirPin = 2;         // PIR sensor output pin
+const int relayPin = 7;       // Relay control pin
+const int buzzerPin = 8;      // Buzzer pin
+void setup() {
+  Serial.begin(9600);         // Start serial communication
+  pinMode(pirPin, INPUT);     // Set PIR sensor as input
+  pinMode(relayPin, OUTPUT);  // Set relay as output
+  pinMode(buzzerPin, OUTPUT); // Set buzzer as output
+  // Initialize relay and buzzer as off
+  digitalWrite(relayPin, HIGH); // Keep relay off initially
+  digitalWrite(buzzerPin, LOW); // Keep buzzer off initially
+}
+void loop() {
+  int motionDetected = digitalRead(pirPin); // Read PIR sensor
+  if (motionDetected == HIGH) {             // If motion is detected
+    Serial.println("Motion Detected! Alarm activated.");
+    // Activate relay and buzzer
+    digitalWrite(relayPin, LOW);            // Turn on relay (activates light/siren)
+    digitalWrite(buzzerPin, HIGH);          // Turn on buzzer
+    delay(5000);                            // Keep alarm on for 5 seconds
+  } else {
+    // Deactivate relay and buzzer
+    digitalWrite(relayPin, HIGH);           // Turn off relay
+    digitalWrite(buzzerPin, LOW);           // Turn off buzzer
+  }
+  delay(200); // Small delay for stability
+}
+
+
+Raspberry PI:
+import RPi.GPIO as GPIO
+import time
+
+# Define pins
+pir_pin = 2         # GPIO pin connected to PIR sensor (BCM numbering)
+relay_pin = 7       # GPIO pin for relay
+buzzer_pin = 8      # GPIO pin for buzzer
+
+# Set up GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(pir_pin, GPIO.IN)
+GPIO.setup(relay_pin, GPIO.OUT)
+GPIO.setup(buzzer_pin, GPIO.OUT)
+
+# Initialize relay and buzzer as off
+GPIO.output(relay_pin, GPIO.HIGH)  # Relay off initially
+GPIO.output(buzzer_pin, GPIO.LOW)  # Buzzer off initially
+
+try:
+    while True:
+        # Read PIR sensor state
+        motion_detected = GPIO.input(pir_pin)
+        
+        if motion_detected:  # Motion detected
+            print("Motion Detected! Alarm activated.")
+            GPIO.output(relay_pin, GPIO.LOW)  # Turn on relay
+            GPIO.output(buzzer_pin, GPIO.HIGH)  # Turn on buzzer
+            time.sleep(5)  # Keep alarm on for 5 seconds
+        else:
+            # Turn off relay and buzzer
+            GPIO.output(relay_pin, GPIO.HIGH)
+            GPIO.output(buzzer_pin, GPIO.LOW)
+
+        time.sleep(0.2)  # Small delay for stability
+
+except KeyboardInterrupt:
+    print("Program stopped by user")
+
+finally:
+    GPIO.cleanup()
+
+4)	Fire and Smoke Detection System: Set up a Flame Sensor (KY-026) and an MQ-135 Gas Sensor to detect fire and smoke and trigger an alert.
+
+int flamePin = 2;      // Flame sensor digital pin
+int gasPin = A0;       // MQ-135 gas sensor analog pin
+int buzzerPin = 8;     // Buzzer pin
+int flameThreshold = 500;    // Set threshold for flame detection
+int gasThreshold = 200;      // Set threshold for smoke/gas detection
+
+void setup() {
+  Serial.begin(9600);        // Start serial communication
+  pinMode(flamePin, INPUT);  // Set flame sensor as input
+  pinMode(buzzerPin, OUTPUT);// Set buzzer as output
+  digitalWrite(buzzerPin, LOW); // Keep buzzer off initially
+}
+
+void loop() {
+  int flameValue = digitalRead(flamePin);      // Read flame sensor
+  int gasValue = analogRead(gasPin);           // Read gas sensor
+  Serial.print("Flame Detection: ");
+  Serial.println(flameValue);
+  Serial.print("Gas Level: ");
+  Serial.println(gasValue);
+  // Check for fire or smoke
+  if (flameValue == LOW || gasValue > gasThreshold) { // LOW means flame detected
+    digitalWrite(buzzerPin, HIGH);                   // Activate buzzer
+    Serial.println("Alert! Fire or Smoke Detected.");
+  } else {
+    digitalWrite(buzzerPin, LOW);                    // Deactivate buzzer
+  }
+  delay(1000); // Delay for stability
+}
+
+Ras pi:
+
+sudo apt-get install python3-spidev
+
+import RPi.GPIO as GPIO
+import spidev  # For SPI communication with MCP3008
+import time
+
+# Define pins
+flame_pin = 2  # GPIO pin connected to the flame sensor (BCM numbering)
+buzzer_pin = 8 # GPIO pin for buzzer
+flame_threshold = 500  # Threshold for flame detection (not used in digital read)
+gas_threshold = 200    # Threshold for gas detection
+
+# Set up GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(flame_pin, GPIO.IN)
+GPIO.setup(buzzer_pin, GPIO.OUT)
+GPIO.output(buzzer_pin, GPIO.LOW)  # Keep buzzer off initially
+
+# Set up SPI for MCP3008
+spi = spidev.SpiDev()
+spi.open(0, 0)  # Open SPI bus
+spi.max_speed_hz = 1350000
+
+def read_adc(channel):
+    # Read from MCP3008 ADC
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
+
+try:
+    while True:
+        # Read flame sensor value (digital read)
+        flame_value = GPIO.input(flame_pin)
+        
+        # Read gas sensor value (analog read via MCP3008)
+        gas_value = read_adc(0)  # Assuming gas sensor is connected to channel 0
+
+        # Display values
+        print(f"Flame Detection: {'Detected' if flame_value == 0 else 'Not Detected'}")
+        print(f"Gas Level: {gas_value}")
+
+        # Check for fire or smoke
+        if flame_value == GPIO.LOW or gas_value > gas_threshold:
+            GPIO.output(buzzer_pin, GPIO.HIGH)  # Activate buzzer
+            print("Alert! Fire or Smoke Detected.")
+        else:
+            GPIO.output(buzzer_pin, GPIO.LOW)  # Deactivate buzzer
+
+        time.sleep(1)  # Delay for stability
+
+except KeyboardInterrupt:
+    print("Program stopped by user")
+
+finally:
+    spi.close()
+    GPIO.cleanup()
+
+
+
+5)	Intruder Detection with Sound and Motion: Use a PIR Sensor and a Sound Sensor (KY-038) to detect both movement and noise, activating an alarm if needed.
+
+int pirPin = 2;         // PIR sensor output pin
+int soundPin = A1;      // Sound sensor analog pin
+int buzzerPin = 8;      // Buzzer pin
+int soundThreshold = 400;     // Sound threshold
+
+void setup() {
+  Serial.begin(9600);         // Start serial communication
+  pinMode(pirPin, INPUT);     // Set PIR sensor as input
+  pinMode(buzzerPin, OUTPUT); // Set buzzer as output
+  digitalWrite(buzzerPin, LOW); // Keep buzzer off initially
+}
+
+void loop() {
+  int motionDetected = digitalRead(pirPin);    // Read PIR sensor
+  int soundValue = analogRead(soundPin);       // Read sound sensor
+  Serial.print("Motion: ");
+  Serial.println(motionDetected);
+  Serial.print("Sound Level: ");
+  Serial.println(soundValue);
+  // Check for both motion and sound
+  if (motionDetected == HIGH && soundValue > soundThreshold) {
+    digitalWrite(buzzerPin, HIGH);            // Activate buzzer
+    Serial.println("Alert! Intruder Detected.");
+  } else {
+    digitalWrite(buzzerPin, LOW);             // Deactivate buzzer
+  }
+  delay(500); // Delay for stability
+}
+
+RS PI:
+sudo apt-get install python3-spidev
+
+import RPi.GPIO as GPIO
+import spidev  # For SPI communication with MCP3008
+import time
+
+# Define pins
+pir_pin = 2             # GPIO pin connected to the PIR sensor (BCM numbering)
+buzzer_pin = 8          # GPIO pin for buzzer
+sound_threshold = 400   # Threshold for sound detection
+
+# Set up GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(pir_pin, GPIO.IN)
+GPIO.setup(buzzer_pin, GPIO.OUT)
+GPIO.output(buzzer_pin, GPIO.LOW)  # Keep buzzer off initially
+
+# Set up SPI for MCP3008
+spi = spidev.SpiDev()
+spi.open(0, 0)  # Open SPI bus
+spi.max_speed_hz = 1350000
+
+def read_adc(channel):
+    # Read from MCP3008 ADC
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
+
+try:
+    while True:
+        # Read PIR sensor (digital)
+        motion_detected = GPIO.input(pir_pin)
+
+        # Read sound sensor (analog via MCP3008)
+        sound_value = read_adc(1)  # Assuming sound sensor is connected to channel 1
+
+        # Display values
+        print(f"Motion: {'Detected' if motion_detected == 1 else 'Not Detected'}")
+        print(f"Sound Level: {sound_value}")
+
+        # Check for both motion and sound
+        if motion_detected == GPIO.HIGH and sound_value > sound_threshold:
+            GPIO.output(buzzer_pin, GPIO.HIGH)  # Activate buzzer
+            print("Alert! Intruder Detected.")
+        else:
+            GPIO.output(buzzer_pin, GPIO.LOW)   # Deactivate buzzer
+
+        time.sleep(0.5)  # Delay for stability
+
+except KeyboardInterrupt:
+    print("Program stopped by user")
+
+finally:
+    spi.close()
+    GPIO.cleanup()
+
+
+
+6)	Heart Rate and Display System: Connect a Pulse Oximeter and an LCD Display to monitor and show real-time heart rate.
+Include library for PulseSensor: “PulseSensor Playground”
+ 
+
+#include <PulseSensorPlayground.h> 
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+const int PULSE_SENSOR_PIN = 0;  
+const int LED_PIN = 13;  
+const int THRESHOLD = 550;  
+PulseSensorPlayground pulseSensor; 
+
+void setup()  
+{ 
+lcd.begin(16, 2);
+ Serial.begin(9600); 
+ pulseSensor.analogInput(PULSE_SENSOR_PIN); 
+ pulseSensor.blinkOnPulse(LED_PIN); 
+ pulseSensor.setThreshold(THRESHOLD); 
+if (pulseSensor.begin())  
+ {  Serial.println("Pulse Sensor is Initialised!"); } 
+} 
+void loop()  
+{ 
+int currentBPM = pulseSensor.getBeatsPerMinute(); 
+if (pulseSensor.sawStartOfBeat()) { 
+ Serial.print("BPM: "); 
+ Serial.println(currentBPM); 
+lcd.setCursor(0, 0);
+lcd.print("BPM: "); 
+lcd.print(currentBPM);
+lcd.print("");
+lcd.setCursor(0, 1); 
+lcd.print("Pulset: ");
+lcd.print();
+ lcd.print("%");
+ } 
+ delay(10); 
+}
+
+RS PI:
+sudo apt-get install python3-spidev python3-rpi.gpio python3-adafruit-charlcd
+pip install PulseSensorPython
+
+
+import time
+import spidev  # For SPI communication with MCP3008
+import RPi.GPIO as GPIO
+from adafruit_character_lcd.character_lcd import Character_LCD_Mono
+
+# Pin Setup
+LED_PIN = 13         # GPIO pin for LED on pulse
+PULSE_SENSOR_CHANNEL = 0  # ADC channel for pulse sensor (using MCP3008)
+
+# Threshold and BPM Calculation
+THRESHOLD = 550
+sampling_rate = 10  # Sampling rate in milliseconds
+
+# LCD Setup
+lcd_rs = 26
+lcd_en = 19
+lcd_d4 = 13
+lcd_d5 = 6
+lcd_d6 = 5
+lcd_d7 = 11
+lcd_columns = 16
+lcd_rows = 2
+
+# Initialize LCD
+lcd = Character_LCD_Mono(lcd_rs, lcd_en, lcd_d4, lcd_d5, lcd_d6, lcd_d7, lcd_columns, lcd_rows)
+
+# Set up SPI for MCP3008
+spi = spidev.SpiDev()
+spi.open(0, 0)  # Open SPI bus
+spi.max_speed_hz = 1350000
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(LED_PIN, GPIO.OUT)
+
+# Function to read ADC value
+def read_adc(channel):
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
+
+try:
+    lcd.clear()
+    lcd.message = "Initializing..."
+
+    # Main Loop
+    while True:
+        # Read pulse sensor value
+        pulse_value = read_adc(PULSE_SENSOR_CHANNEL)
+
+        # Detect beat
+        if pulse_value > THRESHOLD:
+            GPIO.output(LED_PIN, GPIO.HIGH)
+            bpm = 60 * 1000 / (sampling_rate * pulse_value)  # Calculate BPM (simplified)
+            
+            # Display on LCD
+            lcd.clear()
+            lcd.message = f"BPM: {int(bpm)}\nPulse: {int(pulse_value/10)}%"
+            print(f"BPM: {int(bpm)}")
+
+        else:
+            GPIO.output(LED_PIN, GPIO.LOW)
+
+        time.sleep(sampling_rate / 1000.0)
+
+except KeyboardInterrupt:
+    print("Program interrupted")
+
+finally:
+    spi.close()
+    GPIO.cleanup()
+    lcd.clear()
+
+
+
+
+7)	Automatic Light Control with LDR and Relay: Use an LDR and a Relay to control lighting based on ambient light levels.
+
+const int ldrPin = A0;
+const int relayPin = 8;
+int ldrThreshold = 500;
+
+void setup() {
+  pinMode(relayPin, OUTPUT);
+}
+
+void loop() {
+  int lightLevel = analogRead(ldrPin);
+  if (lightLevel < ldrThreshold) {
+    digitalWrite(relayPin, HIGH); 
+  } else {
+    digitalWrite(relayPin, LOW); 
+  }
+  delay(1000);
+}
+
+RS PI:
+sudo apt-get install python3-spidev python3-rpi.gpio
+
+import time
+import spidev  # For SPI communication with MCP3008
+import RPi.GPIO as GPIO
+
+# Pin Setup
+LDR_CHANNEL = 0           # ADC channel for LDR sensor (using MCP3008)
+RELAY_PIN = 8             # GPIO pin connected to the relay
+LDR_THRESHOLD = 500       # Threshold for LDR to activate relay
+
+# GPIO Setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RELAY_PIN, GPIO.OUT)
+GPIO.output(RELAY_PIN, GPIO.LOW)  # Initial state of relay is OFF
+
+# SPI Setup for MCP3008
+spi = spidev.SpiDev()
+spi.open(0, 0)  # Open SPI bus
+spi.max_speed_hz = 1350000
+
+# Function to read from ADC (MCP3008)
+def read_adc(channel):
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
+
+try:
+    while True:
+        # Read LDR value
+        light_level = read_adc(LDR_CHANNEL)
+        print(f"Light Level: {light_level}")
+
+        # Control relay based on LDR value
+        if light_level < LDR_THRESHOLD:
+            GPIO.output(RELAY_PIN, GPIO.HIGH)  # Turn relay ON
+            print("Relay ON: Low light detected")
+        else:
+            GPIO.output(RELAY_PIN, GPIO.LOW)   # Turn relay OFF
+            print("Relay OFF: Sufficient light")
+
+        time.sleep(1)  # Delay for stability
+
+except KeyboardInterrupt:
+    print("Program stopped by user")
+
+finally:
+    spi.close()
+    GPIO.cleanup()
+
+8)	Water Flow and Soil Moisture System for Irrigation: Combine a Water Flow Sensor and a Soil Moisture Sensor to manage water flow for irrigation purposes.
+
+Raspberry pi:
+import RPi.GPIO as GPIO
+import time
+import Adafruit_DHT
+
+# Setup GPIO
+GPIO.setmode(GPIO.BCM)
+
+# Pin Definitions
+MOISTURE_PIN = 17
+DHT11_PIN = 27
+FLOW_PIN= 22
+RELAY_PIN = 18
+
+# Setup Pins
+GPIO.setup(MOISTURE_PIN, GPIO.IN)
+GPIO.setup(FLOW_PIN, GPIO.IN)     
+GPIO.setup(RELAY_PIN, GPIO.OUT) 
+
+# Function to read soil moisture
+def read_soil_moisture():
+    return GPIO.input(MOISTURE_PIN)
+
+
+# Function to read DHT11 sensor
+def read_dht11():
+    humidity, temperature = Adafruit_DHT.read_retry(11, DHT11_PIN)
+    return humidity, temperature
+# Function to control irrigation
+def control_irrigation():
+    if read_soil_moisture() == 0:  # Assuming 0 means dry soil
+        print("Soil is dry. Activating pump...")
+        print("Turn on pump")
+        GPIO.output(RELAY_PIN, GPIO.HIGH)  # Turn on pump
+        time.sleep(5)  # Water for 10 seconds
+        GPIO.output(RELAY_PIN, GPIO.LOW)   # Turn off pump
+        print("Pump turned off.")
+    else:
+        print("Soil moisture is sufficient.")
+try:
+    while True:
+        # Read sensors
+        humidity, temperature = read_dht11()
+        print(f"Humidity: {humidity}% Temperature: {temperature}°C")
+        
+        # Control irrigation based on soil moisture
+        control_irrigation()
+        # Wait for a minute before next check
+        water_flow = GPIO.input(FLOW_PIN)
+        if water_flow:
+            print("Water is flowing.")
+        else:
+            print("No water flow detected.")
+
+        time.sleep(5)
+
+except KeyboardInterrupt:
+    print("Program stopped by User")
+finally:
+    GPIO.cleanup()
+
+or
+
+Arduino Uno:
+#include <DHT.h>
+
+// Pin Definitions
+const int MOISTURE_PIN = A0; // Analog pin for soil moisture sensor
+const int DHT11_PIN = 2;     // Digital pin for DHT11 sensor
+const int FLOW_PIN = 3;      // Digital pin for water flow sensor
+const int RELAY_PIN = 4;     // Digital pin for relay control
+
+// DHT11 setup
+#define DHTTYPE DHT11
+DHT dht(DHT11_PIN, DHTTYPE);
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(9600);
+  
+  // Set up pins
+  pinMode(MOISTURE_PIN, INPUT);
+  pinMode(FLOW_PIN, INPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+  
+  // Start DHT sensor
+  dht.begin();
+}
+
+void loop() {
+  // Read humidity and temperature from DHT11
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+  
+  // Check if any reads failed and exit early
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+  } else {
+    Serial.print("Humidity: ");
+    Serial.print(humidity);
+    Serial.print("%  Temperature: ");
+    Serial.print(temperature);
+    Serial.println("°C");
+  }
+
+  // Read soil moisture level
+  int soilMoisture = analogRead(MOISTURE_PIN);
+  Serial.print("Soil Moisture Level: ");
+  Serial.println(soilMoisture);
+  
+  // Control irrigation based on soil moisture
+  if (soilMoisture < 500) { // Adjust threshold as needed
+    Serial.println("Soil is dry. Activating pump...");
+    digitalWrite(RELAY_PIN, HIGH); // Turn on pump
+    delay(5000); // Water for 5 seconds
+    digitalWrite(RELAY_PIN, LOW);  // Turn off pump
+    Serial.println("Pump turned off.");
+  } else {
+    Serial.println("Soil moisture is sufficient.");
+  }
+
+  // Check water flow
+  int waterFlow = digitalRead(FLOW_PIN);
+  if (waterFlow == HIGH) {
+    Serial.println("Water is flowing.");
+  } else {
+    Serial.println("No water flow detected.");
+  }
+
+  // Wait 5 seconds before the next check
+  delay(5000);
+}
+
+9. Distance Measurement with Ultrasonic Sensor and Display on monitor: Use an Ultrasonic Sensor to measure and show the distance to nearby objects.
+
+
+const int trigPin = 9;
+const int echoPin = 10;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+}
+
+void loop() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  long duration = pulseIn(echoPin, HIGH);
+  int distance = duration * 0.034 / 2;
+  
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  delay(1000);
+}
+
+
+RS PI:
+import time
+import RPi.GPIO as GPIO
+
+# GPIO Pin setup
+TRIG_PIN = 9      # Trigger pin for ultrasonic sensor
+ECHO_PIN = 10     # Echo pin for ultrasonic sensor
+
+# GPIO setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(TRIG_PIN, GPIO.OUT)
+GPIO.setup(ECHO_PIN, GPIO.IN)
+
+def measure_distance():
+    # Ensure trigger is LOW initially
+    GPIO.output(TRIG_PIN, False)
+    time.sleep(0.2)
+
+    # Send 10 microsecond pulse to trigger
+    GPIO.output(TRIG_PIN, True)
+    time.sleep(0.00001)  # 10 microseconds
+    GPIO.output(TRIG_PIN, False)
+
+    # Wait for echo to start
+    while GPIO.input(ECHO_PIN) == 0:
+        pulse_start = time.time()
+
+    # Wait for echo to end
+    while GPIO.input(ECHO_PIN) == 1:
+        pulse_end = time.time()
+
+    # Calculate pulse duration and distance
+    pulse_duration = pulse_end - pulse_start
+    distance = pulse_duration * 17150  # Speed of sound: 34300 cm/s, so distance = time * 17150
+    distance = round(distance, 2)
+
+    return distance
+
+try:
+    while True:
+        dist = measure_distance()
+        print(f"Distance: {dist} cm")
+        time.sleep(1)  # Delay for stability
+
+except KeyboardInterrupt:
+    print("Measurement stopped by user")
+
+finally:
+    GPIO.cleanup()
+
+
+10. Heartbeat Monitoring with Visual Feedback: Use the KY-039 Heartbeat Sensor and an RGB LED (KY-016) to change LED color based on heart rate (e.g., green for normal, red for high).
+
+int sensorPin = A0;
+int redPin = 9;
+int greenPin = 10;
+int bluePin = 11;
+int heartRate;
+void setup() {
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+  Serial.begin(9600);
+}
+void loop() {
+  int sensorValue = analogRead(sensorPin);
+  heartRate = sensorValue / 10; // Placeholder conversion
+  
+  if (heartRate > 100) {
+    setColor(255, 0, 0); // Red for high heart rate
+  } else {
+    setColor(0, 255, 0); // Green for normal heart rate
+ }
+  delay(1000);}
+void setColor(int red, int green, int blue) {
+  analogWrite(redPin, red);
+  analogWrite(greenPin, green);
+  analogWrite(bluePin, blue);
+}
+Or:
+
+#include <PulseSensorPlayground.h> 
+const int PULSE_SENSOR_PIN = 0;  
+const int LED_PIN = 13;  
+const int THRESHOLD = 550;  
+PulseSensorPlayground pulseSensor; 
+int redPin = 9;
+int greenPin = 10;
+int bluePin = 11;
+
+void setup()  
+{ 
+Serial.begin(9600); 
+ pulseSensor.analogInput(PULSE_SENSOR_PIN); 
+  	pinMode(redPin, OUTPUT);
+  	pinMode(greenPin, OUTPUT);
+  	pinMode(bluePin, OUTPUT);
+
+ pulseSensor.blinkOnPulse(LED_PIN); 
+ pulseSensor.setThreshold(THRESHOLD); 
+if (pulseSensor.begin())  
+ {  Serial.println("Pulse Sensor is Initialised!"); } 
+} 
+void loop()  
+{ 
+int currentBPM = pulseSensor.getBeatsPerMinute(); 
+if (pulseSensor.sawStartOfBeat()) { 
+ Serial.print("BPM: "); 
+ Serial.println(currentBPM); 
+
+if (currentBPM > 100) {
+    setColor(255, 0, 0); // Red for high heart rate
+  } else {
+    setColor(0, 255, 0); // Green for normal heart rate
+  }
+
+} 
+ delay(10); 
+}
+void setColor(int red, int green, int blue) {
+  analogWrite(redPin, red);
+  analogWrite(greenPin, green);
+  analogWrite(bluePin, blue);
+}
+
+RS PI:
+sudo apt-get install python3-spidev python3-rpi.gpio
+
+import time
+import spidev  # For SPI communication with MCP3008
+import RPi.GPIO as GPIO
+
+# Pin Setup
+PULSE_SENSOR_CHANNEL = 0  # ADC channel for pulse sensor (using MCP3008)
+LED_PIN = 13              # Placeholder for pulse blink (not necessary here)
+THRESHOLD = 550           # Pulse threshold
+RED_PIN = 9               # GPIO pin for red color of RGB LED
+GREEN_PIN = 10            # GPIO pin for green color of RGB LED
+BLUE_PIN = 11             # GPIO pin for blue color of RGB LED
+
+# GPIO Setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RED_PIN, GPIO.OUT)
+GPIO.setup(GREEN_PIN, GPIO.OUT)
+GPIO.setup(BLUE_PIN, GPIO.OUT)
+
+# SPI Setup for MCP3008
+spi = spidev.SpiDev()
+spi.open(0, 0)  # Open SPI bus
+spi.max_speed_hz = 1350000
+
+# Set up PWM for smooth LED color changes
+pwm_red = GPIO.PWM(RED_PIN, 1000)
+pwm_green = GPIO.PWM(GREEN_PIN, 1000)
+pwm_blue = GPIO.PWM(BLUE_PIN, 1000)
+pwm_red.start(0)
+pwm_green.start(0)
+pwm_blue.start(0)
+
+# Function to read from ADC (MCP3008)
+def read_adc(channel):
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
+
+# Function to set RGB LED color
+def set_color(red, green, blue):
+    pwm_red.ChangeDutyCycle(red * 100 / 255)
+    pwm_green.ChangeDutyCycle(green * 100 / 255)
+    pwm_blue.ChangeDutyCycle(blue * 100 / 255)
+
+# Main loop
+try:
+    last_beat_time = time.time()
+    beats = []
+
+    while True:
+        # Read pulse sensor value
+        pulse_value = read_adc(PULSE_SENSOR_CHANNEL)
+        print(f"Pulse Value: {pulse_value}")
+
+        current_time = time.time()
+        
+        # Detect heart beat
+        if pulse_value > THRESHOLD:
+            if current_time - last_beat_time > 0.6:  # Debounce to avoid multiple counts per beat
+                beat_time = current_time - last_beat_time
+                bpm = 60 / beat_time
+                beats.append(bpm)
+                last_beat_time = current_time
+
+                # Calculate average BPM over last few beats
+                if len(beats) > 5:
+                    beats.pop(0)  # Keep a moving average of the last 5 beats
+                avg_bpm = sum(beats) / len(beats)
+
+                print(f"BPM: {int(avg_bpm)}")
+
+                # Set LED color based on BPM
+                if avg_bpm > 100:
+                    set_color(255, 0, 0)  # Red for high heart rate
+                else:
+                    set_color(0, 255, 0)  # Green for normal heart rate
+
+        time.sleep(0.01)  # Delay for sensor stability
+
+except KeyboardInterrupt:
+    print("Program stopped by user")
+
+finally:
+    spi.close()
+    pwm_red.stop()
+    pwm_green.stop()
+    pwm_blue.stop()
+    GPIO.cleanup()
+
+
+11. Sound Detection Alarm System: Connect the KY-037 Big Sound Sensor and a Buzzer to trigger an alarm when loud noise is detected
+
+int soundSensorPin = A0;  // Analog pin connected to AO of KY-037
+int buzzerPin = 8;        // Digital pin connected to buzzer
+int soundThreshold = 600;       // Adjust threshold as needed
+
+void setup() {
+  Serial.begin(9600);           // Start serial communication for debugging
+  pinMode(soundSensorPin, INPUT);
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW); // Keep buzzer off initially
+}
+
+void loop() {
+  int soundLevel = analogRead(soundSensorPin);  // Read sound level
+  
+  Serial.print("Sound Level: ");
+  Serial.println(soundLevel);
+
+  // Check if sound level exceeds the threshold
+  if (soundLevel > soundThreshold) {
+    digitalWrite(buzzerPin, HIGH);  // Turn on buzzer
+    Serial.println("Loud noise detected! Alarm triggered.");
+  } else {
+    digitalWrite(buzzerPin, LOW);   // Turn off buzzer
+  }
+
+  delay(500); // Adjust delay as needed
+}
+
+
+Rs pi:
+sudo apt-get install python3-spidev python3-rpi.gpio
+
+
+import time
+import spidev  # For SPI communication with MCP3008
+import RPi.GPIO as GPIO
+# Pin Setup
+SOUND_SENSOR_CHANNEL = 0  # MCP3008 channel for sound sensor
+BUZZER_PIN = 8            # GPIO pin for buzzer
+SOUND_THRESHOLD = 600     # Threshold for triggering the buzzer
+# GPIO Setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(BUZZER_PIN, GPIO.OUT)
+GPIO.output(BUZZER_PIN, GPIO.LOW)  # Initially keep buzzer off
+# SPI Setup for MCP3008
+spi = spidev.SpiDev()
+spi.open(0, 0)  # Open SPI bus
+spi.max_speed_hz = 1350000
+# Function to read from ADC (MCP3008)
+def read_adc(channel):
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
+
+# Main loop
+try:
+    while True:
+        # Read sound sensor value
+        sound_level = read_adc(SOUND_SENSOR_CHANNEL)
+        print(f"Sound Level: {sound_level}")
+        # Check if sound level exceeds the threshold
+        if sound_level > SOUND_THRESHOLD:
+            GPIO.output(BUZZER_PIN, GPIO.HIGH)  # Activate buzzer
+            print("Loud noise detected! Alarm triggered.")
+        else:
+            GPIO.output(BUZZER_PIN, GPIO.LOW)   # Deactivate buzzer
+        time.sleep(0.5)  # Delay for stability
+
+except KeyboardInterrupt:
+    print("Program stopped by user")
+finally:
+    spi.close()
+    GPIO.cleanup()
+
+Traffic
+ 
+
+ 
+
+
+
